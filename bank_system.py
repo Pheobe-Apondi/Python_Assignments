@@ -1,175 +1,174 @@
+from datetime import datetime
+
+class Transaction:
+    def __init__(self,narration,amount,transaction_type):
+        self.date_time =datetime.now()
+        self.narration = narration
+        self.amount = amount
+        self.transaction_type= transaction_type
+        
+
+    
+    def __str__(self):
+        return f"Date: {self.date_time}\n Transaction type: {self.transaction_type}\nNarration: {self.narration}\nAmount: {self.amount}"
+
+
 class Account:
-    def __init__(self,name,min_balance=0):
-        self.name = name
-        self.balance = 0
-        self.deposits = []
-        self.withdrawals = []
-        self.current_loan = 0
-        self.account_frozen = False
-        self.loan = 0
-        self.min_balance = min_balance
-        self.account_closed = False
+    def __init__(self,owner,account_number):
+        self._owner = owner
+        self._account_number = account_number
+        self._transactions = []
+        self._is_closed = False
+        self.is_Frozen = False
+        self._loan_balance = 0.0
+        self._minimum_balance = 0.0
 
+    def __check_account_status(self):
+        if self._is_closed:
+            return ("Account is closed")
+        if  self.is_Frozen :
+            return("Account is frozen")
+        
+    def _validate_amount(self,amount):
+        if amount <=0:
+            return("Amount must be greater than zero")
         
 
-    def deposit(self,amount):
-        if self.account_frozen or self.account_closed:
-            return("You cannot deposit funds into this account. Please visit the nearest branch to get assistance.")
-        if(amount>0):
-            self.deposits.append(amount)
-            self.balance = self.get_balance()
-            return (f"You have deposited:{amount}, your new balance is {self.get_balance()}")
-        else:
-            return (f"We only accepts deposits above O shillings,please try to deposit again.")
+    def _validate_withdrawal(self,amount):
+        self._validate_amount(amount)
+        if self.get_balance() - amount <self._minimum_balance:
+            return f"Withdrawal cannot be made: Minimum balance requirement not met. Your accout balance is {self.get_balance()}, your minimum balance is {self._minimum_balance}"
+
+
+
+    def get_balance(self):
+
+        balance = 0
+        for transaction in self._transactions:
+                if transaction.transaction_type in ['Deposits made','Transfer In','Loan']:
+                  balance += transaction.amount
+                elif transaction.transaction_type in ['Withdrawals','Transfer Out','Loan repayment']:
+                    balance-=transaction.amount
         
+        return  balance
+    
+       
+    def deposit (self,amount):
+        self.__check_account_status()
+        self._validate_amount(amount)
+        self._transactions.append(Transaction("Deposits made",amount,"deposit"))
+        return f"Deposit successful. New account balance: {self.get_balance()}"
+    
 
 
 
     def withdraw(self,amount):
-          if self.account_frozen or self.account_closed:
-            return("You cannot withdraw funds from this account.  Please visit the nearest branch to get assistance.")
-          elif amount <= 0:
-               return("The lowest amount you can withdraw is KES 1")
-          elif amount >self.get_balance():
-              return (f"You do not qualify for an overdraft. Please input a number within your balance range. Your current balance is{self.get_balance()}")
-          elif self.get_balance() - amount <self.min_balance:
-            return ("There is a minimum balance restriction in your account. You do not have enough funds in your account to make this withdrawal")
-          else:
-             self.withdrawals.append(amount)
-             return (f"Withdrawal was successful. {amount} was withdrawn. New account balance is {self.get_balance()}")
-    
-
-
-    
-    def show_balance(self):
-        return self.balance
+        self.__check_account_status()
+        self._validate_withdrawal(amount)
+        self._transactions.append(Transaction("Withdrawal", amount,"withdrawal"))
+        return f"Withdrawal successful. New account balance:{self.get_balance()}"
     
 
     
-    def transfer(self,amount,account):
-          if self.account_frozen or self.account_closed:
-            return("Your account is currently frozen. Please visit the nearest branch to get assistance.")
+    def transfer_funds(self,amount,account):
+        self.__check_account_status()
+        self._validate_withdrawal(amount)
+        if not isinstance(account,Account):
+            return "Account does not exist"
+        if self.get_balance() < amount:
+            return "You do not have enough funds in your account to make this transfer"
+        self._transactions.append(Transaction("Transfer In",amount,f"transfer made to {account.owner}"))
+        account._transactions.append(Transaction("Transfer Out",amount,f"transfer from {self._owner}"))
+        return f"Transferred {amount} to {account._owner}.Your new balance {self.get_balance()}"
+    
 
-          elif amount <= 0:
-               return("The lowest amount you can transfer is KES 1")
-          elif self.get_balance() - amount <self.min_balance:
-            return ("There is a minimum balance restriction in your account. You do not have enough funds in your account to make this transfer")
-
-          elif amount > 0 and amount < self.balance:
-            self.balance -=amount
-            return (f"Transfer was successful: {amount} was transferred to account {account}")
-          else:
-            transfered_money = self.balance - amount
-            self.withdrawals.append(transfered_money)
-            return (f"The transfer was successful. {amount} was transfered to {account}.")
-          
-
-
-    def get_balance(self):
-        self.balance = sum([num for num in self.deposits]) - sum([num for num in self.withdrawals]) - self.loan
-        return self.balance
-
-
-
-    def get_loan(self,amount):
-
-        loan_limit = 0.5 * self.balance
-
-        if self.account_frozen or self.account_closed:
-            return("Your account is currently frozen.  Please visit the nearest branch to get assistance.")
-        elif amount <= 0:
-               return("The loan must be apositive number")
-        if amount <= loan_limit:
-            self.current_loan += amount
-            self.deposits.append(amount)
-            return (f"Loan appplication successfull: {amount} will be deposited in your account")
+    
+    def request_loan(self,amount):
+        self.__check_account_status()
+        self._validate_amount(amount)
+        loan_limit = 0.02 * self.get_balance()
+        if amount > loan_limit:
+            return f"Loan denied: You can only borrow upto {loan_limit}"
         else:
-            return("Loan application unsuccessful: Please try a lower amount")
-        
+            self._loan_balance+= amount
+
+            self._transactions.append(Transaction("Loan",amount,"Loan"))
+            return (f"Loan appplication successfull. Current loan balance is {self._loan_balance}")
 
 
-        
+
+  
 
     def repay_loan(self,amount):
-        if amount > 0 and amount == self.current_loan:
-            self.current_loan -= amount
-            return(f"Your loan payment was successful, you have cleared your loan. You can apply for a new loan. ")
-        elif amount > 0 and amount <self.current_loan:
-            self.current_loan -=amount
-            return (f"Your loan payment was successful,your new loan balance is {self.current_loan}")
-        elif self.current_loan == 0:
-            self.balance +=amount
-            return(f"You do not have any loan taken.{amount} has been transferred to your account. Your new account balance is {self.get_balance()}")
-        else:
-            return (f"We only accepts amounts above O shillings,please try again.")   
+         self.__check_account_status()
+         self._validate_amount(amount)
+         if amount >self._loan_balance:
+             return "Amount entered exceeds your loan balance"
+         else:
+              self._loan_balance -= amount
+              self._transactions.append(Transaction("Loan repayment",amount,"loan repayment"))
+         return f"Loan repayment of {amount} was successful. Remaining loan is {self._loan_balance - amount}"
 
 
 
-
-        
-    def account_details(self):         
-       
-        return (f"Hello {self.name}.Here is your current balance {self.get_balance()} We are happy to have you here and welcome any feedback.")
+    def view_account_details(self):
+        return f"Account Owner: {self._owner}\nAccount Number:{self._account_number}\nBalance:{self.get_balance()}"
     
 
-    def change_account_owner(self,owner):
-        self.name = owner
-        return (f"Account owner changed to {self.name}")
+  
+   
+    
+    def change_account_owner(self,new_owner):
+        self.__check_account_status()
+        self._owner = new_owner
+        return f"Account owner updated to {self._owner}"
+    
+
+    def account_statement(self):
+        self.__check_account_status()
+        for transaction in self._transactions:
+            print(transaction)
+
+
+
+    def calculate_interest(self):
+        self.__check_account_status()
+        interest = self.get_balance() * 0.05
+        self._transactions.append(Transaction("Interest credited", interest,"interest"))
+        return f"Your account interest is {interest}. It has been added to your account. Your new account balance is {self.get_balance()}"
     
 
 
 
-    def  account_statement(self):
-         total_deposits = 0
-         total_withdrawals = 0
-         print(f"Hello {self.name}.Here is your account statement.")
-         for deposit in self.deposits:
-             total_deposits  += deposit
-             print(f"Deposits: {total_deposits}")
-         for withdrawal in self.withdrawals:
-             total_withdrawals +=withdrawal
-             print (f"Withdrawals: {total_withdrawals}")
-         print(f"Outstanding Loan:{self.loan}")
-         print(f"Current balance:{self.get_balance()}")
- 
-
-
-
-    def apply_interest(self):
-        if self.account_frozen or self.account_closed:
-            return "Please visit the nearest branch to get assistance."
-        else:
-            interest = self.get_balance() * 0.05
-            self.deposits.append(interest)
-            return f"Interest of {interest} applied to your funds. New balance is {self.get_balance()}"
-     
-        
     def freeze_account(self):
-         self.account_frozen = True
-         return f"{self.name},your account has been frozen."
+        self.is_Frozen = True
+        return "Account has been frozen"
     
     
     def unfreeze_account(self):
-        self.account_frozen = False
-        return f"{self.name},your account has been unfrozen."
-             
-
-    def set_min_balance(self,amount):
-        self.min_balance = amount
-        return (f"Minimum balance has been set to {self.min_balance}")
+        self.is_Frozen = False
+        return "Account has been unfrozen"
+    
+    
+    def set_minimum_balance(self,amount):
+        self._minimum_balance = amount
+        return f"Minimum blaance set to {self._minimum_balance}"
+    
+    
+    def close_account(self):
+        self._is_closed = True
+        self._transactions.clear()
+        self._loan_balance = 0.0
+        return f"Account closed and all balances cleared"
     
 
-    def close_account(self):
-        self.loan = 0
-        withdraw = self.get_balance ()
-        self.deposits = []
-        self.balance -= withdraw
-        self.withdrawals = []
-        self.account_closed = True
-        return  f"{self.name}. Your account has been closed. {withdraw} shillings has been withdrawn from your account. All balances and transactions have been reset."
-        
 
 
 
+
+
+
+          
+    
 
 
